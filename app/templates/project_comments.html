@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 id="project-title">Comments & Feedback</h1>
+<p class="subtle-text">All comments and feedback grouped by section</p>
+
+<div id="msg"></div>
+
+<div id="comments-container" style="margin:18px 0; max-width:980px;"></div>
+
+<div class="link" style="margin-top:16px;">
+  ← <a href="/dashboard">Back to Dashboard</a>
+</div>
+
+<script>
+  const projectId = {{ project_id }};
+  const msgDiv = document.getElementById("msg");
+  const container = document.getElementById("comments-container");
+  const titleEl = document.getElementById("project-title");
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+
+  async function loadComments() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    msgDiv.textContent = "Loading comments and feedback…";
+    msgDiv.className = "";
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/comments`, {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Failed to load comments";
+        return;
+      }
+
+      titleEl.textContent = `Comments & Feedback – ${data.project_title || "Project " + projectId}`;
+
+      const items = data.items || [];
+      container.innerHTML = "";
+
+      if (!items.length) {
+        container.innerHTML = "<p class='subtle-text'>No sections or comments yet.</p>";
+        msgDiv.textContent = "";
+        return;
+      }
+
+      items.forEach(sec => {
+        const card = document.createElement("div");
+        card.style.border = "1px solid #e6eef9";
+        card.style.borderRadius = "12px";
+        card.style.padding = "14px 18px";
+        card.style.marginBottom = "12px";
+        card.style.background = "#ffffff";
+        card.style.boxShadow = "0 6px 18px rgba(11,18,32,0.06)";
+
+        const header = document.createElement("div");
+        header.style.display = "flex";
+        header.style.justifyContent = "space-between";
+        header.style.alignItems = "center";
+        header.style.marginBottom = "8px";
+
+        const title = document.createElement("div");
+        title.style.fontWeight = "600";
+        title.style.color = "#0b1220";
+        title.style.fontSize = "1rem";
+        title.textContent = `${sec.section_index}. ${sec.section_title}`;
+
+        const summary = document.createElement("div");
+        summary.style.color = "#6b7280";
+        summary.style.fontSize = "0.9rem";
+
+        const numComments = (sec.comments || []).length;
+        const likes = sec.likes || 0;
+        const dislikes = sec.dislikes || 0;
+
+        summary.textContent =
+          (numComments === 1 ? "1 comment" : `${numComments} comments`) +
+          `  ·  👍 ${likes}  ·  👎 ${dislikes}`;
+
+        header.appendChild(title);
+        header.appendChild(summary);
+        card.appendChild(header);
+
+        if (!sec.comments || sec.comments.length === 0) {
+          const empty = document.createElement("p");
+          empty.style.color = "#6b7280";
+          empty.style.margin = "6px 0 0 0";
+          empty.textContent = "No comments for this section.";
+          card.appendChild(empty);
+        } else {
+          const list = document.createElement("ul");
+          list.style.paddingLeft = "18px";
+          list.style.margin = "6px 0 0 0";
+          sec.comments.forEach(c => {
+            const li = document.createElement("li");
+            li.style.marginBottom = "8px";
+            li.style.color = "#0b1220";
+            li.style.lineHeight = "1.4";
+            const ts = c.created_at ? ` — ${c.created_at}` : "";
+            li.textContent = c.comment + ts;
+            list.appendChild(li);
+          });
+          card.appendChild(list);
+        }
+
+        container.appendChild(card);
+      });
+
+      msgDiv.textContent = "";
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error while loading comments";
+    }
+  }
+
+  loadComments();
+</script>
+{% endblock %}

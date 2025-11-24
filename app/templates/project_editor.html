@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 id="project-title">Editor</h1>
+<p id="project-meta"></p>
+<div id="msg"></div>
+
+<div style="margin:10px 0;">
+  <a href="/dashboard">← Back to Dashboard</a> |
+  <a href="/projects/{{ project_id }}/configure">Configure Structure</a>
+</div>
+
+<div id="sections-container"></div>
+
+<div style="margin-top:16px;">
+  <button id="download-docx" type="button">Download .docx</button>
+  <button id="download-pptx" type="button">Download .pptx</button>
+</div>
+
+
+<script>
+  const projectId = {{ project_id }};
+  const msgDiv = document.getElementById("msg");
+  const container = document.getElementById("sections-container");
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+  async function downloadExport(kind) {
+  const token = getToken();
+  if (!token) {
+    window.location.href = "/login";
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/projects/${projectId}/export/${kind}`, {
+      method: "GET",
+      headers: {
+        "Authorization": "Bearer " + token
+      }
+    });
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      msgDiv.className = "error";
+      msgDiv.textContent = data.message || `Failed to download ${kind}`;
+      return;
+    }
+
+    // Convert response to blob and trigger browser download
+    const blob = await res.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+
+    // Try to use filename from server, fallback to default
+    const disposition = res.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^"]+)"?/);
+    const filename = match ? match[1] : `project_${projectId}.${kind}`;
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (err) {
+    msgDiv.className = "error";
+    msgDiv.textContent = "Network error while downloading";
+  }
+}
+document.getElementById("download-docx").onclick = () => downloadExport("docx");
+document.getElementById("download-pptx").onclick = () => downloadExport("pptx");
+
+  async function loadProjectWithContent() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Failed to load project";
+        return;
+      }
+
+      const p = data.project;
+      document.getElementById("project-title").textContent = p.title;
+      document.getElementById("project-meta").textContent =
+        `${p.doc_type.toUpperCase()} – ${p.main_topic}`;
+
+      container.innerHTML = "";
+      if (!Array.isArray(data.sections) || data.sections.length === 0) {
+        container.innerHTML = "<p>No sections yet.</p>";
+        return;
+      }
+
+        data.sections.forEach(sec => {
+        const card = document.createElement("div");
+        card.style.border = "1px solid #e5e7eb";
+        card.style.borderRadius = "6px";
+        card.style.padding = "12px";
+        card.style.marginBottom = "10px";
+        card.style.background = "#fff";
+
+        const title = document.createElement("h3");
+        title.textContent = `${sec.index}. ${sec.title}`;
+        title.style.marginTop = "0";
+
+        const content = document.createElement("pre");
+        content.textContent = sec.current_content || "(no content yet)";
+        content.style.whiteSpace = "pre-wrap";
+        content.style.fontFamily = "inherit";
+        content.style.fontSize = "0.95rem";
+        content.id = `content-${sec.id}`;
+
+        // refinement input
+        const prompt = document.createElement("textarea");
+        prompt.placeholder = "Refinement prompt (e.g., make formal / bullet points / shorten)";
+        prompt.style.width = "100%";
+        prompt.style.height = "70px";
+        prompt.style.marginTop = "6px";
+
+        const refineBtn = document.createElement("button");
+        refineBtn.textContent = "Refine with AI";
+        refineBtn.style.marginTop = "6px";
+
+        // small typing indicator shown below the refine button
+        const refineIndicator = document.createElement("div");
+        refineIndicator.style.display = "none";
+        refineIndicator.style.marginTop = "8px";
+        refineIndicator.style.color = "#374151";
+        refineIndicator.style.fontWeight = "600";
+        refineIndicator.style.whiteSpace = "nowrap";
+
+        // area to show the refined content (or messages) per section
+        const refineStatus = document.createElement("div");
+        refineStatus.style.display = "none";
+        refineStatus.style.marginTop = "8px";
+        refineStatus.style.padding = "8px";
+        refineStatus.style.borderRadius = "8px";
+        refineStatus.style.background = "#fbfdff";
+        refineStatus.style.border = "1px solid #e6eef9";
+        refineStatus.style.whiteSpace = "pre-wrap";
+        refineStatus.style.color = "#0b1220";
+        refineStatus.style.fontSize = "0.95rem";
+
+        function startRefineIndicator() {
+          refineIndicator.style.display = "block";
+          let dots = 0;
+          refineIndicator.textContent = "Generating";
+          refineIndicator._interval = setInterval(() => {
+            dots = (dots + 1) % 4;
+            refineIndicator.textContent = "Generating" + ".".repeat(dots);
+          }, 350);
+        }
+
+        function stopRefineIndicator() {
+          if (refineIndicator._interval) {
+            clearInterval(refineIndicator._interval);
+            refineIndicator._interval = null;
+          }
+          refineIndicator.style.display = "none";
+          refineIndicator.textContent = "";
+        }
+
+        refineBtn.onclick = async () => {
+          // clear per-section status and global msg
+          refineStatus.style.display = "none";
+          refineStatus.textContent = "";
+          msgDiv.textContent = "";
+          const token = getToken();
+          if (!token) { window.location.href = '/login'; return; }
+          refineBtn.disabled = true;
+          startRefineIndicator();
+          try {
+            const res = await fetch(`/api/sections/${sec.id}/refine`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer " + token
+              },
+              body: JSON.stringify({ prompt: prompt.value })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              msgDiv.className = "error";
+              msgDiv.textContent = data.message || "Refinement failed";
+              refineStatus.style.display = "block";
+              refineStatus.style.color = "#b91c1c";
+              refineStatus.textContent = data.error || (data.message || "Refinement failed");
+            } else {
+              msgDiv.className = "success";
+              msgDiv.textContent = "Refinement applied!";
+              // update main content area
+              content.textContent = data.content;
+              // show refined content below button
+              refineStatus.style.display = "block";
+              refineStatus.style.color = "#0b1220";
+              refineStatus.textContent = data.content;
+            }
+          } catch (err) {
+            msgDiv.className = "error";
+            msgDiv.textContent = "Network error";
+            refineStatus.style.display = "block";
+            refineStatus.style.color = "#b91c1c";
+            refineStatus.textContent = "Network error";
+          } finally {
+            refineBtn.disabled = false;
+            stopRefineIndicator();
+          }
+        };
+
+        // like / dislike buttons
+        const likeBtn = document.createElement("button");
+        likeBtn.textContent = "👍";
+        const dislikeBtn = document.createElement("button");
+        dislikeBtn.textContent = "👎";
+        likeBtn.onclick = () => sendFeedback(sec.id, true);
+        dislikeBtn.onclick = () => sendFeedback(sec.id, false);
+
+        // comment box
+        const commentInput = document.createElement("input");
+        commentInput.placeholder = "Add a note/comment";
+        commentInput.style.width = "100%";
+        commentInput.style.marginTop = "8px";
+
+        const commentBtn = document.createElement("button");
+        commentBtn.textContent = "Save Comment";
+        commentBtn.style.marginTop = "4px";
+
+        commentBtn.onclick = () => sendComment(sec.id, commentInput.value);
+
+        card.appendChild(title);
+        card.appendChild(content);
+        card.appendChild(prompt);
+        card.appendChild(refineBtn);
+        card.appendChild(likeBtn);
+        card.appendChild(dislikeBtn);
+        card.appendChild(commentInput);
+        card.appendChild(commentBtn);
+        container.appendChild(card);
+        });
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  }
+async function sendFeedback(sectionId, isLike) {
+  const token = getToken();
+  try {
+    await fetch(`/api/sections/${sectionId}/feedback`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({ is_like: isLike })
+    });
+  } catch {}
+}
+
+async function sendComment(sectionId, comment) {
+  const token = getToken();
+  if (!comment.trim()) return;
+  try {
+    await fetch(`/api/sections/${sectionId}/comments`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token
+      },
+      body: JSON.stringify({ comment })
+    });
+    msgDiv.className = "success";
+    msgDiv.textContent = "Comment saved!";
+  } catch (err) {
+    msgDiv.className = "error";
+    msgDiv.textContent = "Comment failed";
+  }
+}
+
+  loadProjectWithContent();
+</script>
+{% endblock %}

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>{{ title or "AI Doc Platform" }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      :root{
+        --bg: #0f172a; /* deep navy */
+        --bg-accent: linear-gradient(120deg,#0f172a 0%, #071033 100%);
+        --canvas: #e6eef9; /* light canvas behind main */
+        --card: #ffffff;
+        --muted: #6b7280;
+        --accent: #2563eb; /* primary blue */
+        --accent-500: #3b82f6;
+        --accent-600: #1d4ed8;
+        --accent-700: #1e40af;
+        --accent-300: #93c5fd;
+        --danger: #dc2626;
+        --success: #15803d;
+        --radius: 12px;
+        --container-max: 1000px;
+      }
+      *{box-sizing:border-box}
+      html,body{height:100%}
+      body { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background:radial-gradient(ellipse at 10% 10%, rgba(59,130,246,0.06), transparent 10%), radial-gradient(ellipse at 90% 90%, rgba(59,130,246,0.03), transparent 20%), var(--bg); margin:0; color:#0b1220; }
+
+      /* outer wrap gives a soft canvas area */
+      .app-wrap{ max-width:var(--container-max); margin:30px auto; padding:20px; background:var(--canvas); border-radius:16px; box-shadow:0 12px 34px rgba(2,6,23,0.28); }
+
+      header.app-header{ background:transparent; margin-bottom:8px; }
+      .brand{ display:flex; align-items:center; gap:14px; }
+      .logo { width:48px; height:48px; border-radius:12px; background:linear-gradient(135deg,var(--accent-300), var(--accent)); display:inline-flex; align-items:center; justify-content:center; color:white; font-weight:800; font-size:18px; box-shadow:0 8px 26px rgba(37,99,235,0.18); }
+      .brand h1{ margin:0; font-size:1.15rem; color:#05204a; letter-spacing:-0.2px; }
+
+      main { max-width:920px; margin:10px auto; padding:30px; background:var(--card); border-radius:18px; box-shadow:0 24px 48px rgba(2,6,23,0.12); border:1px solid rgba(6,12,28,0.03); }
+
+      h1{ margin-top:0; font-size:1.6rem; color:#0b1220 }
+      label { display:block; margin-bottom:6px; font-size:0.95rem; color:var(--muted); }
+      input[type="text"], input[type="email"], input[type="password"], input[type="number"], textarea, select {
+        width:100%; padding:12px 14px; margin-bottom:12px; border-radius:10px; border:1px solid #e6eef9; font-size:0.97rem; background:#fbfdff; color:#0b1220; transition:box-shadow .15s ease, border-color .12s ease;
+      }
+      input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent-500); box-shadow: 0 6px 18px rgba(59,130,246,0.14); }
+
+      button { display:inline-block; padding:10px 16px; border:none; border-radius:10px; background:linear-gradient(90deg,var(--accent-500), var(--accent-600)); color:white; font-weight:700; cursor:pointer; box-shadow:0 10px 30px rgba(37,99,235,0.18); transition:transform .08s ease, box-shadow .12s ease; }
+      button:hover{ transform:translateY(-2px); box-shadow:0 18px 36px rgba(37,99,235,0.24); }
+      button:disabled{ opacity:0.6; transform:none; box-shadow:none; cursor:default }
+      .btn-ghost{ background:transparent; color:var(--accent-700); border:1px solid rgba(14,42,100,0.06); box-shadow:none }
+
+      .full { width:100%; }
+      .muted { color:var(--muted); font-size:0.92rem; }
+      .link { font-size:0.95rem; }
+
+      .flex { display:flex; gap:12px; align-items:center; }
+      .space-between{ display:flex; justify-content:space-between; align-items:center; }
+
+      .notice { padding:12px 14px; border-radius:10px; background:linear-gradient(180deg,#f8fafc,#f1f8ff); border:1px solid #e6eef9; color:#07203a; margin-bottom:14px; }
+      .error { color:var(--danger); font-size:0.94rem; margin-bottom:10px; }
+      .success { color:var(--success); font-size:0.94rem; margin-bottom:10px; }
+
+      a { color:var(--accent-700); text-decoration:none }
+      a:hover { text-decoration:underline; }
+
+      /* Header nav links */
+      nav.link a{ color:var(--muted); margin-left:10px }
+      nav.link a:hover{ color:var(--accent-300) }
+
+      /* subtle section header */
+      .section-title{ display:flex; align-items:center; gap:10px; margin-bottom:12px }
+      .section-badge{ padding:6px 10px; background:linear-gradient(90deg,var(--accent-300),var(--accent)); color:#04203a; border-radius:8px; font-weight:700 }
+
+      /* Small screens adjustments */
+      @media (max-width:720px){ .app-wrap{ padding:14px } main{ padding:16px } .brand h1{ font-size:1rem } }
+    </style>
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="app-wrap">
+        <div class="space-between">
+          <div class="brand">
+            <div class="logo">AI</div>
+            <h1>AI Doc Platform</h1>
+          </div>
+          <nav class="link muted">
+            <a href="/dashboard" style="color:var(--muted); text-decoration:none; margin-right:12px;">Dashboard</a>
+            <a href="#" id="signout-link" style="color:var(--muted); text-decoration:none;">Sign out</a>
+          </nav>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-wrap">
+      <main>
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <script>
+      // client-side sign out: remove token and redirect to login
+      (function(){
+        const signout = document.getElementById('signout-link');
+        if(signout){
+          signout.addEventListener('click', function(e){
+            e.preventDefault();
+            try{ localStorage.removeItem('token'); }catch(_){}
+            window.location.href = '/login';
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

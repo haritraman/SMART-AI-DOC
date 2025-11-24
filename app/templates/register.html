@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Register</h1>
+<div id="msg"></div>
+<form id="register-form">
+  <label for="email">Email</label>
+  <input id="email" type="email" required />
+
+  <label for="password">Password</label>
+  <input id="password" type="password" required />
+
+  <button type="submit">Create Account</button>
+</form>
+<div class="link">
+  Already have an account? <a href="/login">Login</a>
+</div>
+
+<script>
+  const form = document.getElementById("register-form");
+  const msgDiv = document.getElementById("msg");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msgDiv.textContent = "";
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    try {
+      const res = await fetch("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Registration failed";
+      } else {
+        msgDiv.className = "success";
+        msgDiv.textContent = "Registered! Redirecting to login...";
+        setTimeout(() => {
+          window.location.href = "/login";
+        }, 1000);
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  });
+</script>
+{% endblock %}

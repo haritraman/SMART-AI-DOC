@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 id="project-title">Configure Project</h1>
+<p id="project-meta"></p>
+<div id="msg"></div>
+
+<div style="margin-top:16px;">
+  <button id="add-section-btn">Add Section/Slide</button>
+</div>
+
+<form id="sections-form" style="margin-top:12px;">
+  <table style="width:100%; border-collapse:collapse; margin-bottom:12px;">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Order</th>
+        <th style="text-align:left;">Title</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="sections-body">
+    </tbody>
+  </table>
+    <button type="submit">Save Structure</button>
+</form>
+
+<div style="margin-top:12px;">
+  <button id="generate-btn" type="button">Generate Content with AI</button>
+  <span id="typing-indicator" style="display:none; margin-left:12px; color:#374151; font-weight:600"></span>
+</div>
+
+
+<div class="link" style="margin-top:10px;">
+  <a href="/dashboard">← Back to Dashboard</a>
+</div>
+
+<script>
+  const projectId = {{ project_id }};
+  const msgDiv = document.getElementById("msg");
+  const tbody = document.getElementById("sections-body");
+  const addBtn = document.getElementById("add-section-btn");
+  const form = document.getElementById("sections-form");
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+
+  function addRow(index, title) {
+    const tr = document.createElement("tr");
+
+    const tdIndex = document.createElement("td");
+    const inputIndex = document.createElement("input");
+    inputIndex.type = "number";
+    inputIndex.value = index;
+    inputIndex.style.width = "60px";
+    tdIndex.appendChild(inputIndex);
+
+    const tdTitle = document.createElement("td");
+    const inputTitle = document.createElement("input");
+    inputTitle.type = "text";
+    inputTitle.value = title || "";
+    inputTitle.style.width = "100%";
+    tdTitle.appendChild(inputTitle);
+
+    const tdActions = document.createElement("td");
+    // align action button vertically with inputs
+    tdActions.style.display = "flex";
+    tdActions.style.alignItems = "center";
+    tdActions.style.justifyContent = "flex-end";
+    tdActions.style.paddingLeft = "12px";
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.textContent = "Remove";
+    // style remove button to match card buttons and align center
+    delBtn.onclick = () => tr.remove();
+    delBtn.style.padding = "10px 18px";
+    delBtn.style.borderRadius = "10px";
+    delBtn.style.background = "var(--accent)";
+    delBtn.style.color = "#fff";
+    delBtn.style.fontWeight = "700";
+    delBtn.style.boxShadow = "0 8px 22px rgba(37,99,235,0.12)";
+    delBtn.style.cursor = "pointer";
+    tdActions.appendChild(delBtn);
+
+    tr.appendChild(tdIndex);
+    tr.appendChild(tdTitle);
+    tr.appendChild(tdActions);
+
+    tbody.appendChild(tr);
+  }
+
+  async function loadProject() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+    try {
+      const res = await fetch(`/api/projects/${projectId}`, {
+        headers: { "Authorization": "Bearer " + token }
+      });
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = "Failed to load project";
+        return;
+      }
+      const data = await res.json();
+      const p = data.project;
+      document.getElementById("project-title").textContent = p.title;
+      document.getElementById("project-meta").textContent =
+        `${p.doc_type.toUpperCase()} – ${p.main_topic}`;
+
+      tbody.innerHTML = "";
+      if (Array.isArray(data.sections) && data.sections.length > 0) {
+        data.sections.forEach(s => addRow(s.index, s.title));
+      } else {
+        addRow(1, "");
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  }
+
+  addBtn.addEventListener("click", () => {
+    const rows = tbody.querySelectorAll("tr");
+    const nextIndex = rows.length + 1;
+    addRow(nextIndex, "");
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msgDiv.textContent = "";
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const sections = [];
+    tbody.querySelectorAll("tr").forEach(tr => {
+      const [idxInput, titleInput] = tr.querySelectorAll("input");
+      const idx = parseInt(idxInput.value || "0", 10);
+      const title = titleInput.value.trim();
+      if (idx && title) {
+        sections.push({ index: idx, title });
+      }
+    });
+
+    if (sections.length === 0) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Add at least one section/slide";
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/sections`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ sections })
+      });
+
+      // Try to parse JSON response, but fall back to plain text if server returned HTML/error page
+      let data = null;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        const text = await res.text().catch(() => "");
+        data = { message: text || `HTTP ${res.status} ${res.statusText}` };
+      }
+
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Failed to save structure";
+      } else {
+        msgDiv.className = "success";
+        msgDiv.textContent = data.message || "Structure saved. You can now trigger generation (we'll add UI next).";
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  });
+
+  loadProject();
+    const genBtn = document.getElementById("generate-btn");
+  const typingIndicator = document.getElementById("typing-indicator");
+  let typingInterval = null;
+
+  function startTypingIndicator() {
+    if (!typingIndicator) return;
+    let dots = 0;
+    typingIndicator.style.display = "inline-block";
+    typingIndicator.textContent = "Generating";
+    typingInterval = setInterval(() => {
+      dots = (dots + 1) % 4; // 0..3
+      typingIndicator.textContent = "Generating" + ".".repeat(dots);
+    }, 400);
+  }
+
+  function stopTypingIndicator() {
+    if (!typingIndicator) return;
+    if (typingInterval) {
+      clearInterval(typingInterval);
+      typingInterval = null;
+    }
+    typingIndicator.style.display = "none";
+    typingIndicator.textContent = "";
+  }
+
+  genBtn.addEventListener("click", async () => {
+    // show typing indicator and prevent double-clicks
+    msgDiv.className = "";
+    genBtn.disabled = true;
+    startTypingIndicator();
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/projects/${projectId}/generate`, {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Failed to generate content";
+      } else {
+        msgDiv.className = "success";
+        msgDiv.textContent = "Content generated! Opening editor...";
+        setTimeout(() => {
+          window.location.href = `/projects/${projectId}/edit`;
+        }, 800);
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+    finally {
+      genBtn.disabled = false;
+      stopTypingIndicator();
+    }
+  });
+
+</script>
+{% endblock %}

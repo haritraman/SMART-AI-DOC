@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Login</h1>
+<div id="msg"></div>
+<form id="login-form">
+  <label for="email">Email</label>
+  <input id="email" type="email" required />
+
+  <label for="password">Password</label>
+  <input id="password" type="password" required />
+
+  <button type="submit">Login</button>
+</form>
+<div class="link">
+  No account? <a href="/register">Register</a>
+</div>
+
+<script>
+  const form = document.getElementById("login-form");
+  const msgDiv = document.getElementById("msg");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msgDiv.textContent = "";
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    try {
+      const res = await fetch("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Login failed";
+      } else {
+        // Save JWT for later API calls
+        localStorage.setItem("token", data.access_token);
+        msgDiv.className = "success";
+        msgDiv.textContent = "Login successful! Redirecting...";
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 800);
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  });
+</script>
+{% endblock %}

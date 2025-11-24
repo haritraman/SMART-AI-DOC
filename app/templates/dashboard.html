@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>My Projects</h1>
+<div id="msg"></div>
+
+<form id="new-project-form" style="margin-bottom:16px;">
+  <label for="title">Project Title</label>
+  <input id="title" required placeholder="e.g. Hospital management system" style="width:100%; padding:8px; border-radius:6px; border:1px solid #d1d5db; margin-bottom:8px;" />
+
+  <label for="doc_type">Document Type</label>
+  <select id="doc_type">
+    <option value="docx">Word (.docx)</option>
+    <option value="pptx">PowerPoint (.pptx)</option>
+  </select>
+
+  <label for="main_topic">Main Topic / Prompt</label>
+  <input id="main_topic" required />
+
+  <button type="submit">Create Project</button>
+</form>
+
+  
+
+<hr style="margin:16px 0;">
+
+<h2 style="font-size:1.1rem;">Existing Projects</h2>
+<ul id="projects-list"></ul>
+
+<script>
+  const msgDiv = document.getElementById("msg");
+  const listEl = document.getElementById("projects-list");
+  const form = document.getElementById("new-project-form");
+
+  function getToken() {
+    return localStorage.getItem("token");
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    window.location.href = "/login";
+  }
+
+  function formatStatus(status) {
+    if (!status) return "Configured";
+    const s = status.toString().toLowerCase();
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+
+  async function loadProjects() {
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/projects", {
+        headers: {
+          "Authorization": "Bearer " + token
+        }
+      });
+
+      if (res.status === 401) {
+        logout();
+        return;
+      }
+
+      const data = await res.json();
+      listEl.innerHTML = "";
+
+      if (!Array.isArray(data) || data.length === 0) {
+        listEl.innerHTML = "<li>No projects yet.</li>";
+        return;
+      }
+
+      data.forEach(p => {
+        const li = document.createElement("li");
+
+        // main link → configure structure
+        const mainLink = document.createElement("a");
+        mainLink.href = `/projects/${p.id}/configure`;
+        mainLink.textContent = p.title;
+
+        const statusSpan = document.createElement("span");
+        const status = (p.status || "").toLowerCase();
+        statusSpan.textContent = " – " + formatStatus(status);
+
+        li.appendChild(mainLink);
+        li.appendChild(statusSpan);
+
+        // if generated, add direct link to current content
+        if (status === "generated") {
+          const sep = document.createTextNode("  ·  ");
+          li.appendChild(sep);
+
+          const editLink = document.createElement("a");
+          editLink.href = `/projects/${p.id}/edit`;
+          editLink.textContent = "View content";
+          li.appendChild(editLink);
+        }
+        const sep2 = document.createTextNode("  ·  ");
+        li.appendChild(sep2);
+
+        const commentsLink = document.createElement("a");
+        commentsLink.href = `/projects/${p.id}/comments`;
+        commentsLink.textContent = "View comments";
+        li.appendChild(commentsLink);
+
+        listEl.appendChild(li);
+      });
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Failed to load projects";
+    }
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msgDiv.textContent = "";
+
+    const token = getToken();
+    if (!token) {
+      window.location.href = "/login";
+      return;
+    }
+
+    const title = document.getElementById("title").value.trim();
+    const doc_type = document.getElementById("doc_type").value;
+    const main_topic = document.getElementById("main_topic").value.trim();
+
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + token
+        },
+        body: JSON.stringify({ title, doc_type, main_topic })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        msgDiv.className = "error";
+        msgDiv.textContent = data.message || "Failed to create project";
+      } else {
+        msgDiv.className = "success";
+        msgDiv.textContent = "Project created";
+        form.reset();
+        loadProjects();
+      }
+    } catch (err) {
+      msgDiv.className = "error";
+      msgDiv.textContent = "Network error";
+    }
+  });
+
+  loadProjects();
+</script>
+{% endblock %}
