@@ -7,3 +7,5 @@ python-docx
 python-pptx
 google-genai
 psycopg2-binary
+google-generativeai
+gunicorn
