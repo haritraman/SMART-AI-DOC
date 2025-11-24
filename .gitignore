@@ -1,0 +1,8 @@
+venv/
+.env
+__pycache__/
+instance/
+*.pyc
+*.pptx
+*.docx
+dev.db
